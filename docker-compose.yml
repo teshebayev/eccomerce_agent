@@ -1,0 +1,67 @@
+
+services:
+  streamlit-app:
+    build:
+      context: .
+      dockerfile: apps/chatbot_ui/Dockerfile
+    ports:
+      - 8501:8501
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./apps/chatbot_ui/src:/app/apps/chatbot_ui/src
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - 8000:8000
+    env_file:
+      - .env
+    restart: unless-stopped
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+    depends_on:
+      - ollama
+  
+  qdrant:
+    image: qdrant/qdrant
+    ports:
+      - 6333:6333
+      - 6334:6334
+    volumes:
+      - ./qdrant_storage:/qdrant/storage:z
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+              
+  ollama-pull-models:
+    image: curlimages/curl:latest
+    container_name: ollama-pull-model
+    depends_on:
+      - ollama
+    entrypoint: [ "sh", "-c", "
+      sleep 5;
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"nomic-embed-text\"}';
+      curl -X POST http://ollama:11434/api/pull -d '{\"name\": \"qwen2.5:7b\"}';" ]
+    
+volumes:
+  ollama_data:
